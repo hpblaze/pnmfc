@@ -1,0 +1,22 @@
+[Grid]
+File = ./grids/10x10-Test-1Pore.dgf
+
+PoreGeometry = Cube
+ThroatCrossSectionShape = Square
+
+[Problem]
+Name =  test_pnm_1p_2D
+InletPressure = 1e5 # [Pa]
+OutletPressure = 0.9e5 # [Pa]
+EnableGravity = false
+
+[Vtk]
+AddVelocity = 1
+
+[LinearSolver]
+MaxIterations = 1000
+Preconditioner.Iterations = 10
+Preconditioner.Relaxation = 1.0
+ResidualReduction = 1e-20
+Verbosity = 0
+

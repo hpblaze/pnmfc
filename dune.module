@@ -1,0 +1,12 @@
+################################
+# Dune module information file #
+################################
+
+# Name of the module
+Module: harsha_pnm
+Version: 0
+Maintainer: harsha.pallam@iws.uni-stuttgart.de
+# Required build dependencies
+Depends: dumux
+# Optional build dependencies
+#Suggests:

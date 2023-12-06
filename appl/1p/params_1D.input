@@ -1,0 +1,26 @@
+[Grid]
+PoreGeometry = Cube
+ThroatCrossSectionShape = Square
+
+UpperRight = 1e-4 0 0
+NumPores = 6 
+PoreInscribedRadius = 1e-5
+ThroatInscribedRadius = 5e-6
+BoundaryPoreLabels = xMin:2 xMax:3 yMin:1 yMax:1 zMin:1 zMax:1
+#PriorityList = 4 5 0 1 2 3
+
+[Problem]
+Name = test_pnm_1p_1D
+InletPressure = 2.53e5
+OutletPressure = 2e5
+EnableGravity = false
+
+[Vtk]
+AddVelocity = 1
+
+[LinearSolver]
+MaxIterations = 1000
+Preconditioner.Iterations = 10
+Preconditioner.Relaxation = 1.0
+ResidualReduction = 1e-20
+Verbosity = 0
