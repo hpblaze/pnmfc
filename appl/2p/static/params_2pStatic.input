@@ -1,0 +1,19 @@
+[Grid]
+File = ./grids/9 x 4-Test_sameThroat.dgf
+PoreGeometry = Cube #"Square", "Circle", "Cube", "Sphere", "Cylinder", "Tetrahedron", "Octahedron", "Icosahedron" or "Dodecahedron"
+ThroatCrossSectionShape = Square # "ScaleneTriangle", "EquilateralTriangle", "Square", "Rectangle", "Circle", "TwoPlates", "Polygon"
+
+
+[Problem]
+Name = test_pnm_2p_static_Pore_0.00001_Throat_0.000005
+InitialPc = 3000 # [Pa]
+FinalPc = 60000 # [Pa]
+NumSteps = 100 # the number of episodes to run
+PlotPcS = true
+SurfaceTension = 0.0725
+ContactAngle = 0.0
+InletPoreLabel = 2
+OutletPoreLabel = 3
+
+[SpatialParams]
+HighSwRegularizationMethod = Linear  #Linear, Spline, PowerLaw

@@ -1,13 +1,25 @@
 // -*- mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
 // vi: set et ts=4 sw=4 sts=4:
-//
-// SPDX-FileCopyrightInfo: Copyright © DuMux Project contributors, see AUTHORS.md in root folder
-// SPDX-License-Identifier: GPL-3.0-or-later
-//
+/*****************************************************************************
+ *   See the file COPYING for full copying permissions.                      *
+ *                                                                           *
+ *   This program is free software: you can redistribute it and/or modify    *
+ *   it under the terms of the GNU General Public License as published by    *
+ *   the Free Software Foundation, either version 2 of the License, or       *
+ *   (at your option) any later version.                                     *
+ *                                                                           *
+ *   This program is distributed in the hope that it will be useful,         *
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of          *
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the            *
+ *   GNU General Public License for more details.                            *
+ *                                                                           *
+ *   You should have received a copy of the GNU General Public License       *
+ *   along with this program.  If not, see <http://www.gnu.org/licenses/>.   *
+ *****************************************************************************/
 /*!
  * \file
  *
- * \brief Test for the two-phase pore-network model
+ * \brief test for the pore network model
  */
 #include <config.h>
 
@@ -20,33 +32,31 @@
 #include <dune/grid/io/file/vtk.hh>
 #include <dune/grid/io/file/vtk/vtksequencewriter.hh>
 
+#include <dumux/common/initialize.hh>
 #include <dumux/common/properties.hh>
 #include <dumux/common/parameters.hh>
 #include <dumux/common/dumuxmessage.hh>
 
+#include <dumux/common/defaultusagemessage.hh>
 #include <dumux/assembly/fvassembler.hh>
 
-#include <dumux/porenetwork/common/pnmvtkoutputmodule.hh>
 #include <dumux/linear/istlsolvers.hh>
 #include <dumux/linear/linearsolvertraits.hh>
 #include <dumux/linear/linearalgebratraits.hh>
+#include <dumux/porenetwork/common/pnmvtkoutputmodule.hh>
 #include <dumux/porenetwork/2p/newtonsolver.hh>
 #include <dumux/io/grid/porenetwork/gridmanager.hh>
-#include <dumux/io/grid/porenetwork/dgfwriter.hh>
-#include "problem_2p_im.hh"
-
-#include <dumux/common/initialize.hh>
+#include "problem_dynamic.hh"
 
 
 int main(int argc, char** argv)
 {
     using namespace Dumux;
 
-    using TypeTag = Properties::TTag::ImbibitionProblem;
+    using TypeTag = Properties::TTag::DrainageProblem;
 
-    // maybe initialize MPI and/or multithreading backend, finalize is done automatically on exit
-    Dumux::initialize(argc, argv);
-    const auto& mpiHelper = Dune::MPIHelper::instance();
+    // initialize MPI, finalize is done automatically on exit
+    const auto& mpiHelper = Dune::MPIHelper::instance(argc, argv);
 
     // print dumux start message
     if (mpiHelper.rank() == 0)
@@ -66,50 +76,41 @@ int main(int argc, char** argv)
     using GridManager = Dumux::PoreNetwork::GridManager<3>;
     GridManager gridManager;
     gridManager.init();
-    std::cout << "Grid initialized" << std::endl;
 
     // we compute on the leaf grid view
     const auto& leafGridView = gridManager.grid().leafGridView();
     auto gridData = gridManager.getGridData();
 
-    PoreNetwork::writeDgf("2p_im-grid.dgf", leafGridView, *gridData);
-
-    // initialize marker vector for hydrophilic BC
-    //std::vector<int> marker(leafGridView.size(1),0);
-
     // create the finite volume grid geometry
     using GridGeometry = GetPropType<TypeTag, Properties::GridGeometry>;
     auto gridGeometry = std::make_shared<GridGeometry>(leafGridView, *gridData);
-    std::cout << "Finite Volume Grid created" << std::endl;
 
     // the spatial parameters
     using SpatialParams = GetPropType<TypeTag, Properties::SpatialParams>;
     auto spatialParams = std::make_shared<SpatialParams>(gridGeometry);
-    std::cout << "Spatial parameters set" << std::endl;
 
     // the problem (boundary conditions)
     using Problem = GetPropType<TypeTag, Properties::Problem>;
     auto problem = std::make_shared<Problem>(gridGeometry, spatialParams);
-    std::cout << "Problem set" << std::endl;
 
     // the solution vector
-    using GridView = typename GridGeometry::GridView;
+    using GridView = typename GetPropType<TypeTag, Properties::GridGeometry>::GridView;
     using SolutionVector = GetPropType<TypeTag, Properties::SolutionVector>;
     SolutionVector x(leafGridView.size(GridView::dimension));
     problem->applyInitialSolution(x);
-    problem->calculateSumInletVolume();
     auto xOld = x;
-    std::cout << "Solution vector set" << std::endl;
 
     // the grid variables
     using GridVariables = GetPropType<TypeTag, Properties::GridVariables>;
     auto gridVariables = std::make_shared<GridVariables>(problem, gridGeometry);
     gridVariables->init(x);
-    std::cout << "Grid variables initialized" << std::endl;
-    
+
     const auto poresToPlot = getParam<std::vector<std::size_t>>("PlotMaterialLaw.PoresToPlot", std::vector<std::size_t>{});
     const auto sRange = getParam<std::array<double, 2>>("PlotMaterialLaw.SaturationRange", std::array<double, 2>{0, 1});
     spatialParams->plotPcSw<typename GridVariables::VolumeVariables>(poresToPlot, *problem, sRange[0], sRange[1]);
+
+    // const auto throatsToPlot = getParam<std::vector<std::size_t>>("PlotMaterialLaw.ThroatsToPlot", std::vector<std::size_t>{});
+    // spatialParams->plotTransmissibilities<typename GridVariables::VolumeVariables>(throatsToPlot, *problem, gridVariables->gridFluxVarsCache());
 
     // get some time loop parameters
     using Scalar = GetPropType<TypeTag, Properties::Scalar>;
@@ -124,17 +125,12 @@ int main(int argc, char** argv)
     Scalar restartTime = 0;
     if (Parameters::getTree().hasKey("Restart") || Parameters::getTree().hasKey("TimeLoop.Restart"))
         restartTime = getParam<Scalar>("TimeLoop.Restart");
-    std::cout << "set restart time" << std::endl;
 
-    // initialize the vtk output module
+    // intialize the vtk output module
     using IOFields = GetPropType<TypeTag, Properties::IOFields>;
     PoreNetwork::VtkOutputModule<GridVariables, GetPropType<TypeTag, Properties::FluxVariables>, SolutionVector> vtkWriter(*gridVariables, x, problem->name());
     IOFields::initOutputModule(vtkWriter); //! Add model specific output fields
-    std::cout << "Vtk output files initialized" << std::endl;
 
-    vtkWriter.addField(gridGeometry->poreVolume(), "poreVolume", Vtk::FieldType::vertex);
-    vtkWriter.addField(gridGeometry->throatShapeFactor(), "throatShapeFactor", Vtk::FieldType::element);
-    vtkWriter.addField(gridGeometry->throatCrossSectionalArea(), "throatCrossSectionalArea", Vtk::FieldType::element);
     vtkWriter.write(0.0);
 
     Dumux::PoreNetwork::AveragedValues<GridVariables, SolutionVector> avgValues(*gridVariables, x);
@@ -155,22 +151,18 @@ int main(int argc, char** argv)
     // instantiate time loop
     auto timeLoop = std::make_shared<TimeLoop<Scalar>>(restartTime, dt, tEnd);
     timeLoop->setMaxTimeStepSize(maxDt);
-    std::cout << "time loop init check" << std::endl;
 
     // the assembler with time loop for instationary problem
     using Assembler = FVAssembler<TypeTag, DiffMethod::numeric>;
     auto assembler = std::make_shared<Assembler>(problem, gridGeometry, gridVariables, timeLoop, xOld);
-    std::cout << "assembler check" << std::endl;
 
     // the linear solver
     using LinearSolver = UMFPackIstlSolver<SeqLinearSolverTraits, LinearAlgebraTraitsFromAssembler<Assembler>>;
     auto linearSolver = std::make_shared<LinearSolver>();
-    std::cout << "linear solver check" << std::endl;
 
     // the non-linear solver
     using NewtonSolver = PoreNetwork::TwoPNewtonSolver<Assembler, LinearSolver>;
     NewtonSolver nonLinearSolver(assembler, linearSolver);
-    std::cout << "non-linear solver check" << std::endl;
 
     // time loop
     timeLoop->start(); do
@@ -180,36 +172,58 @@ int main(int argc, char** argv)
 
         // try solving the non-linear system
         nonLinearSolver.solve(x, *timeLoop);
-        std::cout << "non-linear solver check time loop" << std::endl;
 
         // make the new solution the old solution
         xOld = x;
-        problem->postTimeStep(timeLoop->time());
         gridVariables->advanceTimeStep();
-        std::cout << "make new solution the old solution" << std::endl;
 
         // advance to the time loop to the next step
         timeLoop->advanceTimeStep();
+
+        // calculate the averaged values
+        avgValues.eval(dofsToNeglect);
+        problem->postTimeStep(timeLoop->time(), avgValues, gridVariables->gridFluxVarsCache().invasionState().numThroatsInvaded(), timeLoop->timeStepSize());
 
         // write vtk output
         if(problem->shouldWriteOutput(timeLoop->timeStepIndex(), *gridVariables))
             vtkWriter.write(timeLoop->time());
 
+        // check if all drainge steps have been performed
+        if(problem->simulationFinished())
+            timeLoop->setFinished();
+
         // report statistics of this time step
         timeLoop->reportTimeStep();
 
+#if NOREGULARIZTAION
         // set new dt as suggested by newton solver
+        static const Scalar increasedTimeStepShiftThreshold = getParam<Scalar>("Problem.IncreasedTimeStepShiftThreshold", 1e-8);
+        static const Scalar maxDtNonEquilibrium = getParam<Scalar>("TimeLoop.MaxDtNonEquilibrium", 1e-5);
+        const Scalar newTimeStepSize = problem->dSwDt() > increasedTimeStepShiftThreshold ? maxDtNonEquilibrium : nonLinearSolver.suggestTimeStepSize(timeLoop->timeStepSize());
+        if (problem->dSwDt() > increasedTimeStepShiftThreshold)
+        {
+            std::cout << "Temporal change in saturation " << problem->dSwDt() << " is greater than threshold " << increasedTimeStepShiftThreshold << ". ";
+            std::cout <<"Setting new time step to " << newTimeStepSize << std::endl;
+        }
+        else
+        {
+            std::cout << "Temporal change in saturation " << problem->dSwDt() << " is smaller than threshold " << increasedTimeStepShiftThreshold << ". ";
+            std::cout <<"Setting new time step to " << newTimeStepSize << std::endl;
+        }
+        timeLoop->setTimeStepSize(newTimeStepSize);
+#endif
         timeLoop->setTimeStepSize(nonLinearSolver.suggestTimeStepSize(timeLoop->timeStepSize()));
 
     } while (!timeLoop->finished());
 
     nonLinearSolver.report();
     //plot the pc-S curve, if desired
+#ifdef HAVE_GNUPLOT
     if(stepWiseDrainage)
         problem->plotPcS();
+#endif
 
 
-    problem->postTimeStep(timeLoop->time());
     ////////////////////////////////////////////////////////////
     // finalize, print dumux message to say goodbye
     ////////////////////////////////////////////////////////////
@@ -221,4 +235,5 @@ int main(int argc, char** argv)
         Parameters::print();
         DumuxMessage::print(/*firstCall=*/false);
     }
+
 }

@@ -18,10 +18,10 @@
 namespace Dumux::PoreNetwork {
 
 template<class GridGeometry, class Scalar, class MaterialLawT>
-class TwoPDrainageSpatialParams
-: public TwoPSpatialParams<GridGeometry, Scalar, MaterialLawT, TwoPDrainageSpatialParams<GridGeometry, Scalar, MaterialLawT>>
+class TwoPImbibitionSpatialParams
+: public TwoPSpatialParams<GridGeometry, Scalar, MaterialLawT, TwoPImbibitionSpatialParams<GridGeometry, Scalar, MaterialLawT>>
 {
-    using ParentType = TwoPSpatialParams<GridGeometry, Scalar, MaterialLawT, TwoPDrainageSpatialParams<GridGeometry, Scalar, MaterialLawT>>;
+    using ParentType = TwoPSpatialParams<GridGeometry, Scalar, MaterialLawT, TwoPImbibitionSpatialParams<GridGeometry, Scalar, MaterialLawT>>;
 
     using GridView = typename GridGeometry::GridView;
     using Element = typename GridView::template Codim<0>::Entity;
@@ -32,7 +32,7 @@ public:
     using PermeabilityType = Scalar;
     using ParentType::ParentType;
 
-    TwoPDrainageSpatialParams(std::shared_ptr<const GridGeometry> gridGeometry)
+    TwoPImbibitionSpatialParams(std::shared_ptr<const GridGeometry> gridGeometry)
     : ParentType(gridGeometry)
     {
         temperature_ = getParam<Scalar>("SpatialParams.Temperature", 283.15);

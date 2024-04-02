@@ -4,7 +4,7 @@ TEnd = 1e2 # [s]
 MaxTimeStepSize = 2
 
 [Grid]
-File = ../1p/grids/10x10-Test-1Pore.dgf
+File = ../1p/grids/pnm_converted.dgf
 PoreGeometry = Cube
 ThroatCrossSectionShape = Square
 

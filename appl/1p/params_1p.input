@@ -1,0 +1,28 @@
+[Grid]
+File = ./grids/9 x 4-Test_coord_inc.dgf
+PoreGeometry = Cube  #"Square", "Circle", "Cube", "Sphere", "Cylinder", "Tetrahedron", "Octahedron", "Icosahedron" or "Dodecahedron"
+ThroatCrossSectionShape = Square # "ScaleneTriangle", "EquilateralTriangle", "Square", "Rectangle", "Circle", "TwoPlates", "Polygon"
+
+[Problem]
+Name = pnm_1p_coord_inc
+InletPressure = 1e5 # [Pa]
+OutletPressure = 1e5 # [Pa]
+EnableGravity = false
+sourceFluxH2O = 8.36605e-10 #6.999e-10 #9.833333333333333e-8 1.01e-5 #6.07e-10
+Verbose = true
+VtpOutputFrequency = 100 # Write every n-th time step. 0 only writes a file if an invasion / snap-off occured. -1 writes every step
+#NumSteps = 100 # the number of episodes to run
+
+[Vtk]
+AddVelocity = 1
+
+[Flux]
+UpwindWeight = 1
+
+[LinearSolver]
+MaxIterations = 1000
+Preconditioner.Iterations = 10
+Preconditioner.Relaxation = 1.0
+ResidualReduction = 1e-20
+Verbosity = 1
+

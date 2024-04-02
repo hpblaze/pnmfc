@@ -1,0 +1,45 @@
+[TimeLoop]
+DtInitial = 1e-5 # [s]
+TEnd = 100000 # [s]
+
+[Grid]
+File = ./grids/9 x 4-Test.dgf #../1p/grids/10x10-Test-1Pore rad_change.dgf 
+PoreGeometry = Cube #"Square", "Circle", "Cube", "Sphere", "Cylinder", "Tetrahedron", "Octahedron", "Icosahedron" or "Dodecahedron".
+ThroatCrossSectionShape = Square # "ScaleneTriangle", "EquilateralTriangle", "Square", "Rectangle", "Circle", "TwoPlates", "Polygon".
+
+[Problem]
+Name = 2p_im
+InvasionStateVerbosity = true
+VtpOutputFrequency = -1 # Write every n-th time step. 0 only writes a file if an invasion / snap-off occurred. -1 writes every step
+EnableGravity = false
+pnOutlet = 1e5 # [Pa]
+swOutlet = 0 #0.0368  #0.01 # []
+sourceWetFluxH2O = 3.585e-6 #6.999e-10 #9.833333333333333e-8 1.01e-5 #6.07e-10 
+sourceNonWetFluxAir = 0
+PlotPcS = true
+
+
+[Vtk]
+AddVelocity = 1
+
+[Newton]
+MaxSteps = 20
+TargetSteps = 10
+UseLineSearch = true
+MaxRelativeShift = 1e-5
+MaxTimeStepDivisions = 20
+NewtonOutputFilename = NewtonLog.txt
+
+[InvasionState]
+Verbosity = true
+#AccuracyCriterion = 0.99
+#BlockNonwettingPhaseAtThroatLabel = 1
+
+[SpatialParams]
+#RegularizationLowSw = 0.01
+#RegularizationHighSw = 0.9
+HighSwRegularizationMethod = Spline
+
+[Component]
+LiquidKinematicViscosity = 1e-7
+LiquidDensity = 1000

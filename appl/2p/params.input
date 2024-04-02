@@ -1,17 +1,17 @@
 [TimeLoop]
 DtInitial = 1e-5 # [s]
-TEnd = 0.01 # [s]
+TEnd = 100000 # [s]
 
 [Grid]
-File = ../1p/grids/10x10-Test-1Pore.dgf
-PoreGeometry = Cube
-ThroatCrossSectionShape = Square
+File = ../1p/grids/9 x 4-Test_diagonal.dgf #../1p/grids/10x10-Test-1Pore rad_change.dgf 
+PoreGeometry = Cube #"Square", "Circle", "Cube", "Sphere", "Cylinder", "Tetrahedron", "Octahedron", "Icosahedron" or "Dodecahedron".
+ThroatCrossSectionShape = Circle # "ScaleneTriangle", "EquilateralTriangle", "Square", "Rectangle", "Circle", "TwoPlates", "Polygon".
 
 [Problem]
-Name = test_pnm_2p
+Name = 2p_simple_c_1diag
 VtpOutputFrequency = -1 # Write every n-th time step. 0 only writes a file if an invasion / snap-off occurred. -1 writes every step
 EnableGravity = false
-CapillaryPressure = 5000
+CapillaryPressure = 30000
 UseFixedPressureAndSaturationBoundary = false
 
 [Vtk]

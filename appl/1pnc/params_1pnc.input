@@ -1,0 +1,37 @@
+[TimeLoop]
+DtInitial = 1e-1 # [s]
+TEnd = 1e2 # [s]
+MaxTimeStepSize = 2
+
+[Grid]
+File = ./grids/9 x 4-Test_outThroat.dgf
+PoreGeometry = Cube #"Square", "Circle", "Cube", "Sphere", "Cylinder", "Tetrahedron", "Octahedron", "Icosahedron" or "Dodecahedron"
+ThroatCrossSectionShape = Square # "ScaleneTriangle", "EquilateralTriangle", "Square", "Rectangle", "Circle", "TwoPlates", "Polygon"
+
+[Problem]
+Name = test_pnm_1p2c_out
+Verbose = true
+VtpOutputFrequency = 100 # Write every n-th time step. 0 only writes a file if an invasion / snap-off occured. -1 writes every step
+InletPressure = 1.00003e5
+OutletPressure = 1e5
+InletMoleFraction = 1e-4
+OutletMoleFraction = 0
+sourceFluxH2O = 1e-7 #6.999e-10 #9.833333333333333e-8 1.01e-5 #6.07e-10
+EnableGravity = false
+
+[Vtk]
+AddVelocity = 1
+
+[Flux]
+UpwindWeight = 1
+
+[Newton]
+MaxSteps = 20
+TargetSteps = 10
+MaxRelativeShift = 1e-7
+MaxTimeStepDivisions = 20
+
+[Component]
+SolidHeatCapacity = 1.0 # for compatibility
+SolidDensity = 1.0 # for compatibility
+SolidThermalConductivity = 1.0 # for compatibility

@@ -53,6 +53,11 @@ struct FluidSystem<TypeTag, TTag::DrainageProblem>
     using type = FluidSystems::H2OAir<Scalar, Components::SimpleH2O<Scalar>>;
 };
 
+// Set formulation (pw and sn or pn and sw)
+template<class TypeTag>
+struct Formulation<TypeTag, TTag::DrainageProblem>
+{ static constexpr auto value = TwoPFormulation::p0s1; }; //p1s0 is pnsw
+
 template<class TypeTag>
 struct SpatialParams<TypeTag, TTag::DrainageProblem>
 {

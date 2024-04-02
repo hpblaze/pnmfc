@@ -1,0 +1,31 @@
+[Grid]
+File = ./grids/9 x 4-Test_p.dgf
+PoreGeometry = Cube  #"Square", "Circle", "Cube", "Sphere", "Cylinder", "Tetrahedron", "Octahedron", "Icosahedron" or "Dodecahedron"
+ThroatCrossSectionShape = Square # "ScaleneTriangle", "EquilateralTriangle", "Square", "Rectangle", "Circle", "TwoPlates", "Polygon"
+
+#UpperRight = 1e-4 0 0
+#NumPores = 6 
+#PoreInscribedRadius = 1e-5
+#ThroatInscribedRadius = 5e-6
+#BoundaryPoreLabels = xMin:2 xMax:3 yMin:1 yMax:1 zMin:1 zMax:1
+#PriorityList = 4 5 0 1 2 3
+
+[Problem]
+Name = 1p_2D_old
+InletPressure = 1e5 # [Pa]
+OutletPressure = 0.9e5 # [Pa]
+EnableGravity = false
+sourceFluxH2O = 1.01e-5
+
+[Vtk]
+AddVelocity = 1
+
+[Flux]
+UpwindWeight = 1
+
+[LinearSolver]
+MaxIterations = 1000
+Preconditioner.Iterations = 10
+Preconditioner.Relaxation = 1.0
+ResidualReduction = 1e-20
+Verbosity = 1

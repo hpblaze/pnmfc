@@ -48,6 +48,7 @@ public:
         testHydrostaticPressure_ = getParamFromGroup<bool>(this->paramGroup(), "Problem.EnableGravity");
         inletPressure_ = getParam<Scalar>("Problem.InletPressure");
         outletPressure_ = getParam<Scalar>("Problem.OutletPressure");
+        sourceFluxH2O_ = getParam<Scalar>("Problem.sourceFluxH2O");
     }
 
     /*!
@@ -63,10 +64,11 @@ public:
     //! which equation for a finite volume on the boundary.
     BoundaryTypes boundaryTypes(const Element& element, const SubControlVolume& scv) const
     {
-        
         BoundaryTypes bcTypes;
         if (isInletPore_(scv) || isOutletPore_(scv))
             bcTypes.setAllDirichlet();
+        else
+            bcTypes.setAllNeumann();
 #if !ISOTHERMAL
         bcTypes.setDirichlet(Indices::temperatureIdx);
 #endif
@@ -86,10 +88,17 @@ public:
                                const SubControlVolume& scv) const
     {
         PrimaryVariables values(0.0);
-        if(isInletPore_(scv))
+        if(isInletPore_(scv)){
             values[Indices::pressureIdx] = inletPressure_;
-        else
+        }
+        /*
+        if(isSourcePore_(scv)){
+            values[Indices::pressureIdx] = inletPressure_;
+        }
+        */
+        if(isOutletPore_(scv)){
             values[Indices::pressureIdx] = outletPressure_;
+        }       
 #if !ISOTHERMAL
          if(isInletPore_(scv))
             values[Indices::temperatureIdx] = 273.15 +25;
@@ -130,7 +139,13 @@ public:
                             const ElementVolumeVariables& elemVolVars,
                             const SubControlVolume &scv) const
     {
-        return PrimaryVariables(0);
+        //return PrimaryVariables(0);
+        PrimaryVariables values(0.0);
+        if(isSourcePore_(scv)){
+            std::cout << "Problem.sourceFluxH2O value: " << sourceFluxH2O_ << std::endl;
+            values += sourceFluxH2O_/(this->gridGeometry().poreVolume(scv.dofIndex()));
+        }
+        return values;
     }
 
     // \}
@@ -160,6 +175,11 @@ private:
         return this->gridGeometry().poreLabel(scv.dofIndex()) == Labels::inlet;
     }
 
+    bool isSourcePore_(const SubControlVolume& scv) const
+    {
+        return this->gridGeometry().poreLabel(scv.dofIndex()) == Labels::source;
+    }
+
     bool isOutletPore_(const SubControlVolume& scv) const
     {
         if (testHydrostaticPressure_)
@@ -171,6 +191,7 @@ private:
     bool testHydrostaticPressure_;
     Scalar inletPressure_;
     Scalar outletPressure_;
+    Scalar sourceFluxH2O_;
 };
 } //end namespace Dumux
 

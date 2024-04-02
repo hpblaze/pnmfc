@@ -19,20 +19,24 @@
 #include <dune/grid/io/file/dgfparser/dgfexception.hh>
 #include <dune/grid/io/file/vtk.hh>
 
-#include <dumux/assembly/fvassembler.hh>
-#include <dumux/common/initialize.hh>
 #include <dumux/common/properties.hh>
 #include <dumux/common/parameters.hh>
 #include <dumux/common/dumuxmessage.hh>
+#include <dumux/common/defaultusagemessage.hh>
 
+#include <dumux/assembly/fvassembler.hh>
+
+#include <dumux/porenetwork/common/pnmvtkoutputmodule.hh>
 #include <dumux/linear/istlsolvers.hh>
 #include <dumux/linear/linearsolvertraits.hh>
 #include <dumux/linear/linearalgebratraits.hh>
-
-#include <dumux/porenetwork/common/pnmvtkoutputmodule.hh>
-#include <dumux/porenetwork/common/boundaryflux.hh>
 #include <dumux/io/grid/porenetwork/gridmanager.hh>
-#include "properties.hh"
+#include "problem_1p.hh"
+
+#include <dumux/common/initialize.hh>
+#include <dumux/porenetwork/common/boundaryflux.hh>
+#include <dumux/io/grid/porenetwork/dgfwriter.hh>
+
 
 int main(int argc, char** argv)
 {
@@ -62,32 +66,39 @@ int main(int argc, char** argv)
     using GridManager = Dumux::PoreNetwork::GridManager<3>;
     GridManager gridManager;
     gridManager.init();
-
+    std::cout << "Grid initialized" << std::endl;
     // we compute on the leaf grid view
     const auto& leafGridView = gridManager.grid().leafGridView();
     auto gridData = gridManager.getGridData();
 
+    PoreNetwork::writeDgf("pnm-grid.dgf", leafGridView, *gridData);
+
     // create the finite volume grid geometry
     using GridGeometry = GetPropType<TypeTag, Properties::GridGeometry>;
     auto gridGeometry = std::make_shared<GridGeometry>(leafGridView, *gridData);
+    std::cout << "Finite Volume Grid created" << std::endl;
 
     // the spatial parameters
     using SpatialParams = GetPropType<TypeTag, Properties::SpatialParams>;
     auto spatialParams = std::make_shared<SpatialParams>(gridGeometry);
+    std::cout << "Spatial parameters set" << std::endl;
 
     // the problem (boundary conditions)
     using Problem = GetPropType<TypeTag, Properties::Problem>;
     auto problem = std::make_shared<Problem>(gridGeometry, spatialParams);
+    std::cout << "Problem set" << std::endl;
 
     // the solution vector
     using GridView = typename GridGeometry::GridView;
     using SolutionVector = GetPropType<TypeTag, Properties::SolutionVector>;
     SolutionVector x(leafGridView.size(GridView::dimension));
+    std::cout << "Solution vector set" << std::endl;
 
     // the grid variables
     using GridVariables = GetPropType<TypeTag, Properties::GridVariables>;
     auto gridVariables = std::make_shared<GridVariables>(problem, gridGeometry);
     gridVariables->init(x);
+    std::cout << "Grid variables initialized" << std::endl;
 
     // make assemble and attach linear system
     using Assembler = FVAssembler<TypeTag, DiffMethod::analytic>;
@@ -114,6 +125,8 @@ int main(int argc, char** argv)
     Dune::Timer solverTimer;
     using LinearSolver = ILURestartedGMResIstlSolver<SeqLinearSolverTraits, LinearAlgebraTraitsFromAssembler<Assembler>>;
     auto linearSolver = std::make_shared<LinearSolver>();
+
+    std::cout << "linear solver check" << std::endl;
 
     if (mpiHelper.rank() == 0) std::cout << "Solving linear system using " + linearSolver->name() + "..." << std::flush;
     linearSolver->solve(*A, x, *r);
@@ -142,8 +155,12 @@ int main(int argc, char** argv)
                   << comm.size() << " processes.\n"
                   << "The cumulative CPU time was " << timer.elapsed()*comm.size() << " seconds.\n";
 
+    // print dumux end message
     if (mpiHelper.rank() == 0)
+    {
         Parameters::print();
-
+        DumuxMessage::print(/*firstCall=*/false);
+    }
+    
     return 0;
 }
