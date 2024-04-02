@@ -63,6 +63,7 @@ public:
     //! which equation for a finite volume on the boundary.
     BoundaryTypes boundaryTypes(const Element& element, const SubControlVolume& scv) const
     {
+        
         BoundaryTypes bcTypes;
         if (isInletPore_(scv) || isOutletPore_(scv))
             bcTypes.setAllDirichlet();
