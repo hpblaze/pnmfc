@@ -1,6 +1,6 @@
 [TimeLoop]
-DtInitial = 1e-5 # [s]
-TEnd = 1000000 # [s]
+DtInitial = 1e-3 # [s]
+TEnd = 100 # [s]
 
 [Grid]
 File = ./grids/9 x 4-Test.dgf #../1p/grids/10x10-Test-1Pore rad_change.dgf 
@@ -12,23 +12,27 @@ Name = 2p_im_top_bc_steff
 InvasionStateVerbosity = true
 VtpOutputFrequency = -1 # Write every n-th time step. 0 only writes a file if an invasion / snap-off occurred. -1 writes every step
 EnableGravity = false
-pnOutlet = 1e5 # [Pa]
-swOutlet = 0 #0.0368  #0.01 # []
-sourceWetFluxH2O = 3.585e-6 #6.999e-10 #9.833333333333333e-8 1.01e-5 #6.07e-10 
-sourceNonWetFluxAir = 0 #-6.999e-10
+pwOutlet = 0 # [Pa]
+snOutlet = 1 #0.0368  #0.01 # []
+sourceWetFluxH2O = 3.585e-8 #6.999e-10 #9.833333333333333e-8 1.01e-5 #6.07e-10 
+sinkNonWetFluxAir = 1.254e-8 #-6.999e-10
 PlotPcS = true
+CapillaryPressure = 7000
+UseFixedPressureAndSaturationBoundary = false
+DistributeByVolume = true
 
 
 [Vtk]
 AddVelocity = 1
 
 [Newton]
+UseLineSearch = true
 MaxSteps = 20
 TargetSteps = 10
-UseLineSearch = true
-MaxRelativeShift = 1e-5
-MaxTimeStepDivisions = 20
+MaxRelativeShift = 1e-6
+MaxTimeStepDivisions = 10
 NewtonOutputFilename = NewtonLog.txt
+NewtonOverview = NewtonOverview.txt
 
 [InvasionState]
 Verbosity = true

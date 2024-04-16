@@ -33,7 +33,7 @@
 #include <dumux/porenetwork/2p/newtonsolver.hh>
 #include <dumux/io/grid/porenetwork/gridmanager.hh>
 #include <dumux/io/grid/porenetwork/dgfwriter.hh>
-#include "problem_2p_im.hh"
+#include "problem_2p_im_sink.hh"
 
 #include <dumux/common/initialize.hh>
 
@@ -97,6 +97,7 @@ int main(int argc, char** argv)
     using SolutionVector = GetPropType<TypeTag, Properties::SolutionVector>;
     SolutionVector x(leafGridView.size(GridView::dimension));
     problem->applyInitialSolution(x);
+    problem->calculateSumSourceVolume();
     problem->calculateSumInletVolume();
     auto xOld = x;
     std::cout << "Solution vector set" << std::endl;
@@ -188,9 +189,12 @@ int main(int argc, char** argv)
 
         // make the new solution the old solution
         xOld = x;
-        problem->postTimeStep(timeLoop->time());
+
+        // calculate the averaged values
+        avgValues.eval();
+        problem->postTimeStep(timeLoop->time(), avgValues, gridVariables->gridFluxVarsCache().invasionState().numThroatsInvaded(), timeLoop->timeStepSize());
+
         gridVariables->advanceTimeStep();
-        std::cout << "make new solution the old solution" << std::endl;
 
         // advance to the time loop to the next step
         timeLoop->advanceTimeStep();
@@ -207,15 +211,10 @@ int main(int argc, char** argv)
 
     } while (!timeLoop->finished());
 
-    nonLinearSolver.report();
-    /*
-    //plot the pc-S curve, if desired
-    if(stepWiseDrainage)
-        problem->plotPcS();
-    */
-    
+    problem->postTimeStep(timeLoop->time(), avgValues, gridVariables->gridFluxVarsCache().invasionState().numThroatsInvaded(), timeLoop->timeStepSize());
 
-    problem->postTimeStep(timeLoop->time());
+    nonLinearSolver.report();
+
     ////////////////////////////////////////////////////////////
     // finalize, print dumux message to say goodbye
     ////////////////////////////////////////////////////////////

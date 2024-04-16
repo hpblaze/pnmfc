@@ -33,7 +33,7 @@
 #include <dumux/porenetwork/2p/newtonsolver.hh>
 #include <dumux/io/grid/porenetwork/gridmanager.hh>
 #include <dumux/io/grid/porenetwork/dgfwriter.hh>
-#include "problem_2p_im.hh"
+#include "problem_magic.hh"
 
 #include <dumux/common/initialize.hh>
 
@@ -72,7 +72,7 @@ int main(int argc, char** argv)
     const auto& leafGridView = gridManager.grid().leafGridView();
     auto gridData = gridManager.getGridData();
 
-    PoreNetwork::writeDgf("2p_im-grid.dgf", leafGridView, *gridData);
+    //PoreNetwork::writeDgf("2p_im-grid.dgf", leafGridView, *gridData);
 
     // initialize marker vector for hydrophilic BC
     //std::vector<int> marker(leafGridView.size(1),0);
@@ -97,7 +97,7 @@ int main(int argc, char** argv)
     using SolutionVector = GetPropType<TypeTag, Properties::SolutionVector>;
     SolutionVector x(leafGridView.size(GridView::dimension));
     problem->applyInitialSolution(x);
-    problem->calculateSumInletVolume();
+    problem->calculateSumSourceVolume();
     auto xOld = x;
     std::cout << "Solution vector set" << std::endl;
 
@@ -143,8 +143,8 @@ int main(int argc, char** argv)
 
     Dumux::PoreNetwork::AveragedValues<GridVariables, SolutionVector> avgValues(*gridVariables, x);
     using FS = typename GridVariables::VolumeVariables::FluidSystem;
-    avgValues.addAveragedQuantity([](const auto& v){ return v.saturation(FS::phase0Idx); }, [](const auto& v){ return v.poreVolume(); }, "avgSat");
-    avgValues.addAveragedQuantity([](const auto& v){ return v.pressure(FS::phase0Idx); }, [](const auto& v){ return v.saturation(FS::phase0Idx)*v.poreVolume(); }, "avgPw");
+    avgValues.addAveragedQuantity([](const auto& v){ return v.saturation(FS::phase0Idx); }, [](const auto& v){ return v.poreVolume(); }, "avgSat"); // Function to extract saturation values
+    avgValues.addAveragedQuantity([](const auto& v){ return v.pressure(FS::phase0Idx); }, [](const auto& v){ return v.saturation(FS::phase0Idx)*v.poreVolume(); }, "avgPw"); 
     avgValues.addAveragedQuantity([](const auto& v){ return v.pressure(FS::phase1Idx); }, [](const auto& v){ return v.saturation(FS::phase1Idx)*v.poreVolume(); }, "avgPn");
     std::vector<std::size_t> dofsToNeglect;
 
@@ -188,9 +188,11 @@ int main(int argc, char** argv)
 
         // make the new solution the old solution
         xOld = x;
-        problem->postTimeStep(timeLoop->time());
+
         gridVariables->advanceTimeStep();
-        std::cout << "make new solution the old solution" << std::endl;
+
+        //Update the outlet pores data with magic pores
+        problem->ObtainMagicPoreData(x);
 
         // advance to the time loop to the next step
         timeLoop->advanceTimeStep();
@@ -208,14 +210,7 @@ int main(int argc, char** argv)
     } while (!timeLoop->finished());
 
     nonLinearSolver.report();
-    /*
-    //plot the pc-S curve, if desired
-    if(stepWiseDrainage)
-        problem->plotPcS();
-    */
-    
 
-    problem->postTimeStep(timeLoop->time());
     ////////////////////////////////////////////////////////////
     // finalize, print dumux message to say goodbye
     ////////////////////////////////////////////////////////////

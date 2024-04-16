@@ -7,7 +7,7 @@
 /*!
  * \file
  *
- * \brief A test problem for the two-phase pore network model.
+ * \brief A test problem for the two-phase pore network model (imbibition).
  */
 #ifndef DUMUX_IMBIBITION_PROBLEM_HH
 #define DUMUX_IMBIBITION_PROBLEM_HH
@@ -29,10 +29,6 @@
 #include "files/h2oair.hh"
 #include "files/spatialparams_im.hh" // spatial params
 
-#ifndef ISOTHERMAL
-#define ISOTHERMAL 1
-#endif
-
 
 namespace Dumux 
 {
@@ -43,11 +39,7 @@ namespace Properties {
 
 // Create new type tags
 namespace TTag {
-#if ISOTHERMAL
 struct ImbibitionProblem { using InheritsFrom = std::tuple<PNMTwoP>; };
-#else
-struct ImbibitionProblem { using InheritsFrom = std::tuple<PNMTwoPNI>; };
-#endif
 }  // end namespace TTag
 
 // Set the problem property
@@ -65,6 +57,11 @@ struct FluidSystem<TypeTag, TTag::ImbibitionProblem>
 // Set the grid type
 template<class TypeTag>
 struct Grid<TypeTag, TTag::ImbibitionProblem> { using type = Dune::FoamGrid<1, 3>; };
+
+// Set formulation (pw and sn or pn and sw)
+template<class TypeTag>
+struct Formulation<TypeTag, TTag::ImbibitionProblem>
+{ static constexpr auto value = TwoPFormulation::p1s0; }; //p1s0 is pnsw
 
 // Set the spatial params  
 template<class TypeTag>
@@ -110,8 +107,8 @@ class ImbibitionProblem : public PorousMediumFlowProblem<TypeTag>
         nPhaseIdx = FluidSystem::phase1Idx, //Air
 
         // primary variable indices
-        pwIdx = Indices::pressureIdx,
-        snIdx = Indices::saturationIdx,
+        pnIdx = Indices::pressureIdx,
+        swIdx = Indices::saturationIdx,
 
     };
 
@@ -127,14 +124,8 @@ public:
         //get some parameters from the input file
         verbose_ = getParam<bool>("Problem.Verbose", true);
         VtpOutputFrequency_ = getParam<int>("Problem.VtpOutputFrequency");
-        useFixedPressureAndSaturationBoundary_ = getParam<bool>("Problem.UseFixedPressureAndSaturationBoundary", false);
-        distributeByVolume_ = getParam<bool>("Problem.DistributeByVolume", true);
-        pc_ = getParam<Scalar>("Problem.CapillaryPressure");
-        pwOutlet_ = getParam<Scalar>("Problem.pwOutlet");
-        snOutlet_ = getParam<Scalar>("Problem.snOutlet");
-        sigma_ = getParam<Scalar>("SpatialParams.SurfaceTension", 0.0725);
         sourceWetFluxH2O_ = getParam<Scalar>("Problem.sourceWetFluxH2O");
-        sinkNonWetFluxAir_ = getParam<Scalar>("Problem.sinkNonWetFluxAir");
+        sigma_ = getParam<Scalar>("SpatialParams.SurfaceTension", 0.0725);
         logfile_.open("time_steps_" + this->name() + ".txt");
 
 
@@ -142,10 +133,8 @@ public:
         std::cout << "---------------- START INDICES OUTPUT ----------------" << std::endl;
         std::cout << "wetting phase index:" << wPhaseIdx << std::endl;
         std::cout << "non-wetting phase index:" << nPhaseIdx << std::endl;
-        std::cout << "pressure index:" << pwIdx << std::endl;
-        std::cout << "saturation index:" << snIdx << std::endl;
-        //std::cout << "Temperature index:" << temperatureIdx << std::endl;
-        //std::cout << "energy eq index:" << energyEqIdx << std::endl;
+        std::cout << "pressure index:" << pnIdx << std::endl;
+        std::cout << "saturation index:" << swIdx << std::endl;
         std::cout << "---------------- END INDICES OUTPUT ----------------"<< std::endl;
     }
 
@@ -170,6 +159,9 @@ public:
             return (timeStepIndex % VtpOutputFrequency_ == 0 || gridVariables.gridFluxVarsCache().invasionState().hasChanged());
     }
 
+    
+
+
      /*!
      * \name Boundary conditions
      */
@@ -178,27 +170,12 @@ public:
     //! which equation for a finite volume on the boundary.
     BoundaryTypes boundaryTypes(const Element& element, const SubControlVolume& scv) const
     {
-        BoundaryTypes bcTypes;
-        /*
-        if (onLeftBoundary_(scv) || onRightBoundary_(scv) || onBottomBoundary_(scv))
-        {
+        BoundaryTypes bcTypes;     
+
+        if (isOutletPore_(scv)) //|| isSourcePore_(scv)
+            bcTypes.setAllDirichlet();
+        else // neuman for the remaining boundaries
             bcTypes.setAllNeumann();
-            //bcTypes.setNeumann(pnIdx); //set pressure constant
-            //bcTypes.setNeumann(swIdx); //set saturation constant
-        }
-        
-        if (isInletPore_(scv) || isOutletPore_(scv))
-            bcTypes.setAllDirichlet();
-        else // neuman for the remaining boundaries
-            bcTypes.setAllNeumann(); 
-        */
-        // If a global phase pressure difference (pn,inlet - pw,outlet) with fixed saturations is specified, use a Dirichlet BC here
-        if (useFixedPressureAndSaturationBoundary_ && isInletPore_(scv))
-            bcTypes.setAllDirichlet();
-        else if (isOutletPore_(scv))
-            bcTypes.setAllDirichlet();
-        else // neuman for the remaining boundaries
-            bcTypes.setAllNeumann(); 
         
         return bcTypes;
     }
@@ -209,27 +186,20 @@ public:
     {
         PrimaryVariables values(0.0);
         
-        if (isInletPore_(scv))
+        if (isOutletPore_(scv))
         {
-            values[pwIdx] = 0;
-            values[snIdx] = 1;
+            values[pnIdx] = 1e5;
+            if (swOutlet_ < 1 && count_ == 34)
+            {
+                values[swIdx] = swOutlet_/9;
+                std::cout << "Updated swIdx: " << swOutlet_ << std::endl;
+                std::cout << "Updated sumSourcePoresVolume: " << sumSourcePoresVolume_ << std::endl;
+                std::cout << "count: " << count_ << std::endl;
+            }
         }
-        else if (isOutletPore_(scv))
-        {
-            values[pwIdx] = pwOutlet_;
-            values[snIdx] = snOutlet_;
-        }
-
-        // If a global phase pressure difference (pn,inlet - pw,outlet) is specified and the saturation shall also be fixed, apply:
-        // pw,inlet = pw,outlet = 1e5; pn,outlet = pw,outlet + pc(S=0) = pw,outlet; pn,inlet = pw,inlet + pc_
-        if (useFixedPressureAndSaturationBoundary_ && isInletPore_(scv))
-        {
-            values[snIdx] = 1.0 - this->spatialParams().fluidMatrixInteraction(element, scv, int()/*dummyElemsol*/).sw(pc_);
-            std::cout << "pc is used" << std::endl;
-        }
-         return values;
+        
+        return values;
     }
-
 
     // \}
 
@@ -245,46 +215,16 @@ public:
                             const SubControlVolume& scv) const
     {
         PrimaryVariables values(0.0);
-        /*
-        // The total inlet mass flux is distributed according to the ratio of pore volume
-        if(isSourcePore_(scv)){
-            std::cout << "Problem.SourceWetFluxH2O value: " << sourceWetFluxH2O_/(this->gridGeometry().poreVolume(scv.dofIndex())) << "[kg/(m^3.s)]"<< std::endl;
-            values[wPhaseIdx] += sourceWetFluxH2O_/(this->gridGeometry().poreVolume(scv.dofIndex()));
-            std::cout << "Actual.sourceWetFluxH2O value: " << values[wPhaseIdx] << "[kg/(m^3.s)]"<< std::endl;
-            //std::cout << "Pore volume: " << this->gridGeometry().poreVolume(scv.dofIndex()) << std::endl;
-        }
-
-        if(isInletPore_(scv)){
-            std::cout << "Problem.sinkNonWetFluxAir value: " << sinkNonWetFluxAir_/(this->gridGeometry().poreVolume(scv.dofIndex())) << "[kg/(m^3.s)]"<< std::endl;
-            values[nPhaseIdx] -= sinkNonWetFluxAir_/(this->gridGeometry().poreVolume(scv.dofIndex()));
-            std::cout << "Actual.sinkNonWetFluxAir value: " << values[nPhaseIdx] << "[kg/(m^3.s)]"<< std::endl;
-            //std::cout << "Pore volume: " << this->gridGeometry().poreVolume(scv.dofIndex()) << std::endl;
-        }
-        */
         // We fix the mass flux of non-wetting injection at inlet of pore-network
         // The total inlet mass flux is distributed according to the ratio
         // of pore volume at inlet to the total volumess
-        if (!useFixedPressureAndSaturationBoundary_ && isSourcePore_(scv))
+        if (isSourcePore_(scv))
         {
-            if (distributeByVolume_)
-            {
-                values[wPhaseIdx] = sourceWetFluxH2O_ * ( scv.volume()/sumSourcePoresVolume_ );
-                //std::cout << "Actual.sourceWetFluxH2O value: " << values[snIdx] << std::endl;
-            }
-            else
-                values[wPhaseIdx] = sourceWetFluxH2O_ * std::pow((this->gridGeometry().poreInscribedRadius(scv.dofIndex())), 4.0)/sumSourcePoresVolume_;
+            values[wPhaseIdx] = sourceWetFluxH2O_ * ( scv.volume() / sumSourcePoresVolume_ );
+            //std::cout << "Actual.sourceWetFluxH2O value: " << values[swIdx] << std::endl;
+            //std::cout << "scv.volume(): " << scv.volume() << std::endl;
         }
 
-        if (!useFixedPressureAndSaturationBoundary_ && isInletPore_(scv))
-        {
-            if (distributeByVolume_)
-            {
-                values[nPhaseIdx] = -sinkNonWetFluxAir_ * ( scv.volume()/sumInletPoresVolume_ );
-                //std::cout << "Actual.sinkNonWetFluxAir value: " << values[snIdx] << std::endl;
-            }
-            else
-                values[nPhaseIdx] = -sinkNonWetFluxAir_ * std::pow((this->gridGeometry().poreInscribedRadius(scv.dofIndex())), 4.0)/sumInletPoresVolume_;
-        }
         return values / scv.volume();
     }
     // \}
@@ -293,41 +233,31 @@ public:
     PrimaryVariables initial(const Vertex& vertex) const
     {
         PrimaryVariables values(0.0);
-        values[pwIdx] = 0;
-        values[snIdx] = 1.0;
-        
+        values[pnIdx] = 1e5;
+        values[swIdx] = 0.0;
+        /*
+        //get global index of pore
+        const auto dofIdxGlobal = this->gridGeometry().vertexMapper().index(vertex);
+
+        if (isSourcePore_(dofIdxGlobal))
+        {
+            values[snIdx] = 0;
+        }
+        else
+        */
+            
+
         return values;
     }
 
     //!  Evaluate the initial invasion state of a pore throat
     bool initialInvasionState(const Element& element) const
-    { return true; }
+    { return false; }
 
     // \}
 
     //! Loop over the scv in the domain to calculate the sum volume of inner inlet pores
-    void calculateSumInletVolume()
-    {
-        sumInletPoresVolume_ = 0.0;
-        for (const auto& element : elements(this->gridGeometry().gridView()))
-        {
-            auto fvGeometry = localView(this->gridGeometry());
-            fvGeometry.bind(element);
-            for (const auto& scv : scvs(fvGeometry))
-            {
-                if (isInletPore_(scv))
-                {
-                    if (distributeByVolume_)
-                        sumInletPoresVolume_ += this->gridGeometry().poreVolume(scv.dofIndex())/this->gridGeometry().coordinationNumber(scv.dofIndex());
-                    else
-                        sumInletPoresVolume_ += std::pow(this->gridGeometry().poreInscribedRadius(scv.dofIndex()), 4.0);
-                }
-            }
-        }
-    }
-
-
-    //! Loop over the scv in the domain to calculate the sum volume of inner inlet pores
+        
     void calculateSumSourceVolume()
     {
         sumSourcePoresVolume_ = 0.0;
@@ -339,22 +269,47 @@ public:
             {
                 if (isSourcePore_(scv))
                 {
-                    if (distributeByVolume_)
-                        sumSourcePoresVolume_ += this->gridGeometry().poreVolume(scv.dofIndex())/this->gridGeometry().coordinationNumber(scv.dofIndex());
-                    else
-                        sumSourcePoresVolume_ += std::pow(this->gridGeometry().poreInscribedRadius(scv.dofIndex()), 4.0);
+                    sumSourcePoresVolume_ += this->gridGeometry().poreVolume(scv.dofIndex())/this->gridGeometry().coordinationNumber(scv.dofIndex());
                 }
             }
         }
     }
 
+    //! Loop over the scv in the outlet to update the saturation with magic pore data
+    template<class Solvector>
+    void ObtainMagicPoreData(const Solvector& x)
+    {
+        //Obtaining Wet-Sat from magic pores from previous timestep
+        //Scalar swOutlet_(0.0);
+        swOutlet_ = 0.0;
+        count_ = 0;
+        auto fvGeometry = localView(this->gridGeometry());
+        for(const auto& element : elements(this->gridGeometry().gridView()))
+        {
+            fvGeometry.bind(element);
+            for (const auto& scv : scvs(fvGeometry))
+            {   
+                const auto dofIdx = scv.dofIndex();
+                if (isInletPore_(scv))
+                    {
+                        swOutlet_ += x[dofIdx][swIdx];
+                        count_++;
+                    }
+
+                }
+            }
+    }
+    
+    
+   
     /*!
      * \brief Called at the end of each time step
      */
     template<class AveragedValues>
     void postTimeStep(const Scalar time, const AveragedValues& avgValues, std::size_t numThroatsInvaded, const Scalar dt)
     {
-        const Scalar avgSw = avgValues["avgSat"];
+        //const Scalar avgSw = avgValues["avgSat"];
+
 
 
         logfile_ << std::fixed << std::left << std::setw(20) << std::setfill(' ') << time
@@ -367,40 +322,6 @@ public:
     }
     
 private:
-
-    bool onLeftBoundary_(const SubControlVolume& scv) const
-    {
-        if(scv.dofPosition()[0] < this->gridGeometry().bBoxMin()[0] + eps_)
-            return true;
-        else
-            return false;
-
-    }
-
-    bool onRightBoundary_(const SubControlVolume& scv) const
-    {
-        if(scv.dofPosition()[0] > this->gridGeometry().bBoxMax()[0] - eps_)
-            return true;
-        else
-            return false;
-
-    }
-
-    bool onBottomBoundary_(const SubControlVolume& scv) const
-    {
-        if(scv.dofPosition()[1] < this->gridGeometry().bBoxMin()[1] + eps_)
-            return true;
-        else
-            return false;
-    }
-
-    bool onTopBoundary_(const SubControlVolume& scv) const
-    {
-        if(scv.dofPosition()[1] > this->gridGeometry().bBoxMax()[1] - eps_)
-            return true;
-        else
-            return false;
-    }
 
     bool isInletPore_(const SubControlVolume& scv) const
     {
@@ -429,16 +350,14 @@ private:
     static constexpr Scalar eps_ = 1e-6; 
     int VtpOutputFrequency_;
     bool verbose_;
-    bool useFixedPressureAndSaturationBoundary_;
-    bool distributeByVolume_;
-    Scalar pc_;
-    Scalar pwOutlet_;
-    Scalar snOutlet_;
+    Scalar sink_k_;
+    Scalar pnOutlet_;
+    Scalar swOutlet_;
     Scalar sigma_;
     Scalar sourceWetFluxH2O_;
-    Scalar sinkNonWetFluxAir_;
     Scalar sumSourcePoresVolume_;
-    Scalar sumInletPoresVolume_;
+    Scalar AvgNonWetSat_;
+    Scalar count_;
     std::ofstream logfile_;
 };
 } //end namespace Dumux
