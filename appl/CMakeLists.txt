@@ -4,4 +4,6 @@
 add_subdirectory(1p)
 add_subdirectory(1pnc)
 add_subdirectory(2p)
+add_subdirectory(2p_magic)
 add_subdirectory(2p_sink)
+add_subdirectory(2p_bc)

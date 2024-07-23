@@ -194,9 +194,9 @@ public:
             if (swOutlet_ < 1)
             {
                 values[swIdx] = prevSol_[scv.dofIndex()-layerOffset_][swIdx];
-                std::cout << "Updated swIdx: " << swOutlet_ << std::endl;
-                std::cout << "Updated sumSourcePoresVolume: " << sumSourcePoresVolume_ << std::endl;
-                std::cout << "count: " << count_ << std::endl;
+                //std::cout << "Updated swIdx: " << swOutlet_ << std::endl;
+                //std::cout << "Updated sumSourcePoresVolume: " << sumSourcePoresVolume_ << std::endl;
+                //std::cout << "count: " << count_ << std::endl;
             }
             /*
             else
@@ -227,7 +227,7 @@ public:
         if (isSourcePore_(scv))
         {
             values[wPhaseIdx] = sourceWetFluxH2O_ * ( scv.volume() / sumSourcePoresVolume_ );
-            //std::cout << "Actual.sourceWetFluxH2O value: " << values[swIdx] << std::endl;
+            //std::cout << "Actual.sourceWetFluxH2O value: " << values[wPhaseIdx] << std::endl;
             //std::cout << "scv.volume(): " << scv.volume() << std::endl;
         }
 

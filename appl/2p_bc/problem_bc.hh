@@ -24,9 +24,10 @@
 #include <dumux/common/properties.hh>
 
 #include <dumux/material/components/simpleh2o.hh>
+#include <dumux/material/fluidsystems/h2oair.hh>
 #include <dumux/porenetwork/common/utilities.hh>
 
-#include "files/h2oair.hh"
+//#include "files/h2oair.hh"
 #include "files/spatialparams_im.hh" // spatial params
 
 
@@ -75,6 +76,8 @@ public:
     using type = PoreNetwork::TwoPImbibitionSpatialParams<GridGeometry, Scalar, LocalRules>;
 };
 
+// Define which component balance equation gets replaced by total balance {0,1,2,..,numComponents(none)}
+
 } //end namespace Dumux::Properties
 
 template <class TypeTag>
@@ -118,8 +121,8 @@ class ImbibitionProblem : public PorousMediumFlowProblem<TypeTag>
 // defining get params from input file
 public:
     template<class SpatialParams>
-    ImbibitionProblem(std::shared_ptr<const GridGeometry> gridGeometry, std::shared_ptr<SpatialParams> spatialParams)
-    : ParentType(gridGeometry, spatialParams)
+    ImbibitionProblem(std::shared_ptr<const GridGeometry> gridGeometry, std::shared_ptr<SpatialParams> spatialParams, const SolutionVector& xPrev)
+    : ParentType(gridGeometry, spatialParams), prevSol_(xPrev)
     {
         //get some parameters from the input file
         verbose_ = getParam<bool>("Problem.Verbose", true);
@@ -136,6 +139,8 @@ public:
         std::cout << "pressure index:" << pnIdx << std::endl;
         std::cout << "saturation index:" << swIdx << std::endl;
         std::cout << "---------------- END INDICES OUTPUT ----------------"<< std::endl;
+
+        layerOffset_ = 9; //magic pores offset location 
     }
 
     /*!
@@ -189,17 +194,14 @@ public:
         if (isOutletPore_(scv))
         {
             values[pnIdx] = 1e5;
-            values[swIdx] = swOutlet_;
-            //std::cout << "Updated swIdx: " << swOutlet_ << std::endl;
-            /*
             if (swOutlet_ < 1)
             {
-                values[swIdx] = swOutlet_;
-                std::cout << "Updated swIdx: " << swOutlet_ << std::endl;
-                std::cout << "Updated sumSourcePoresVolume: " << sumSourcePoresVolume_ << std::endl;
-                std::cout << "count: " << count_ << std::endl;
+                values[swIdx] = prevSol_[scv.dofIndex()-layerOffset_][swIdx];
+                //std::cout << "Updated swIdx: " << swOutlet_ << std::endl;
+                //std::cout << "Updated sumSourcePoresVolume: " << sumSourcePoresVolume_ << std::endl;
+                //std::cout << "count: " << count_ << std::endl;
             }
-            
+            /*
             else
                 values[swIdx] = 0.5;
             */
@@ -228,8 +230,7 @@ public:
         if (isSourcePore_(scv))
         {
             values[wPhaseIdx] = sourceWetFluxH2O_ * ( scv.volume() / sumSourcePoresVolume_ );
-            values[nPhaseIdx] = 0;
-            //std::cout << "Actual.sourceWetFluxH2O value: " << values[swIdx] << std::endl;
+            //std::cout << "Actual.sourceWetFluxH2O value: " << values[wPhaseIdx] << std::endl;
             //std::cout << "scv.volume(): " << scv.volume() << std::endl;
         }
 
@@ -345,6 +346,8 @@ private:
     Scalar AvgNonWetSat_;
     Scalar count_;
     std::ofstream logfile_;
+    const SolutionVector& prevSol_;
+    int layerOffset_;
 };
 } //end namespace Dumux
 

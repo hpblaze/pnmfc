@@ -1,7 +1,7 @@
 [TimeLoop]
 DtInitial = 1e-3 # [s]
 TEnd = 3000 # [s]
-MaxTimeStepSize = 50 # [s]
+MaxTimeStepSize = 1
 
 [Grid]
 File = ./grids/9 x 4-Test_magic.dgf #../1p/grids/10x10-Test-1Pore rad_change.dgf 
@@ -9,15 +9,17 @@ PoreGeometry = Cube #"Square", "Circle", "Cube", "Sphere", "Cylinder", "Tetrahed
 ThroatCrossSectionShape = Square # "ScaleneTriangle", "EquilateralTriangle", "Square", "Rectangle", "Circle", "TwoPlates", "Polygon".
 
 [Problem]
-Name = 2p_im_magic_time_50sec
+Name = 2p_im_magic_oil_wat_1sec
 InvasionStateVerbosity = true
 VtpOutputFrequency = -1 # Write every n-th time step. 0 only writes a file if an invasion / snap-off occurred. -1 writes every step
 EnableGravity = false
 #pwInlet = 1e5 # [Pa]
 #snInlet = 0 #0.0368  #0.01 # [-]
 PlotPcS = true
-sourceWetFluxH2O = 0.01e-8 #6.999e-10 #9.833333333333333e-8 1.01e-5 #6.07e-10 #kg/s 
+sourceWetFluxH2O = 0.12e-8 #6.999e-10 #9.833333333333333e-8 1.01e-5 #6.07e-10
 
+[SpatialParams]
+ContactAngle = 0
 
 
 [Vtk]
@@ -39,7 +41,7 @@ AccuracyCriterion = 0.99
 
 [SpatialParams]
 RegularizationLowSw = 0.01
-RegularizationHighSw = 0.9
+#RegularizationHighSw = 0.9
 HighSwRegularizationMethod = Spline
 
 [Component]

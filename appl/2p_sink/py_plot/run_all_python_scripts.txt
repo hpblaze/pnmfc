@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# Grant execute permission
+chmod +x "$0"
+#run all my python scripts in the folder
+for script in *.py; do python3 "$script"; done
